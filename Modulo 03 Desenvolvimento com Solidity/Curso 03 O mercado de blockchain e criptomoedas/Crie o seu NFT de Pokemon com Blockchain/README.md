@@ -1,32 +1,85 @@
-<h1> Instruções gerais </h1>
- </br>
-<h2> Para que serve o arquivo "POkeDIO.sol"? </h2>
- </br>
-O arquivo "POkeDIO.sol" simula uma batalha Pokemon em que são queimados ETH durante as batalhas.</br>
- </br>
-<h2> Pré-requisitos </h2>
- </br>
-1. O Ganache é um programa que será usado para criar carteiras ETH virtuais; </br>
-2. O IPFS é um programa que será usado para criar um identificador dos baseado nas imagens utilizadas; </br>
-3. O Metamask é uma Extensão do Chrome que será usado para sincronizar as carteiras; </br>
-4. O Remix IDE é um site que será usado para compilar o contrato e executar o contrato na blockchain ETH;  </br>
- </br>
-<h2> Como usar o arquivo "POkeDIO.sol"? </h2>
- </br>
-Inicialmente, os programas deverão estar instalados. </br>
-1. No Ganache, será gerada uma nova Workplace, onde serão geradas 10 contas virtuais contendo 100 ETH. </br>
-2. No Metamask, as carteiras geradas pelo Ganache serão importadas. Mas basta importar DUAS. </br>
-3. Copie e cole o arquivo "POkeDIO.sol" na Remix IDE. </br>
-4. Importe as imagens dos seus pokemons usando o IFPS. Nele, você gerará um identificado único que será usado na Remix IDE para gerar os pokemons. </br>
-5. Após compilar o arquivo "POkeDIO.sol", você irá interagir com o contrato criando seu pokemon em "createNewPokemon", onde há 3 variáveis: </br> 
-</br>
-A variável '_name' define o nome do pokemom , que é definida pelo usuário; </br> 
-A variável '_to' declara a chave pública do dono da carteira, que é definida pelo Metamask; </br> 
-A variável '_imagem' é a string oriunda do endereço na IPFS, que é definido pela IFPS; </br> 
-</br>
-Ao se criar um pokemon, serão consumidos PokeDIOs, seráaberta uma mensagem no Metamask solicitando a autorização da transação.</br>
-A segunda conta é adicionada para ser o oponente, também se seguem os mesmos passos para criação de pokemon.</br>
-</br>
-<h2> Resultados </h2>
- </br>
-Ocorrerá uam batalha pokemom que irá consumir ETH da carteira A ou da carteira B, uma vez que cada batalha faz uma call de um smat contract, que consome gás. </br>
+
+# PokeDIO - Um Jogo de Pokémon usando Tokens ERC721
+
+Este contrato Solidity implementa um jogo de Pokémon chamado PokeDIO, onde cada Pokémon é representado como um token ERC721 único e colecionável. Os jogadores podem criar novos Pokémons, lutar com eles, e aumentar seus níveis.
+
+## Funcionalidades Principais
+
+1. **Estrutura Pokémon**: Cada Pokémon possui um nome, nível e uma URL de imagem.
+2. **Batalhas**: Os Pokémons podem lutar entre si, e seus níveis são ajustados com base nos resultados da batalha.
+3. **Criação de Novos Pokémons**: Apenas o dono do jogo pode criar novos Pokémons e atribuí-los a diferentes endereços.
+
+## Como Funciona
+
+- **Criação de Pokémons**: Somente o dono do contrato pode criar novos Pokémons utilizando a função `createNewPokemon`.
+- **Batalhas**: Um jogador pode usar seu Pokémon para atacar outro Pokémon. Dependendo dos níveis, ambos os Pokémons terão seus níveis ajustados após a batalha.
+- **Propriedade**: Cada Pokémon é representado por um token ERC721, e apenas o proprietário do token pode utilizar o Pokémon em batalhas.
+
+## Considerações de Uso
+
+Este contrato pode ser utilizado como base para a criação de um jogo colecionável no Ethereum. Ele permite a implementação de funcionalidades de batalha e colecionáveis únicas, sendo possível expandir o contrato para incluir habilidades especiais, evolução de Pokémons, entre outros.
+
+---
+
+## Código Solidity Explicado
+
+```solidity
+// SPDX-License-Identifier: GPL-3.0
+
+pragma solidity ^0.8.0;
+
+// Importa a implementação do padrão ERC721 da OpenZeppelin
+import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+
+// Declaração do contrato PokeDIO que herda a funcionalidade do contrato ERC721
+contract PokeDIO is ERC721 {
+
+    // Estrutura que define as propriedades de um Pokémon
+    struct Pokemon {
+        string name; // Nome do Pokémon
+        uint level;  // Nível do Pokémon
+        string img;  // URL da imagem do Pokémon
+    }
+
+    // Array público que armazena todos os Pokémons criados
+    Pokemon[] public pokemons;
+
+    // Endereço do dono do jogo
+    address public gameOwner;
+
+    // Construtor que define o nome e símbolo do token ERC721 e atribui o dono do jogo
+    constructor() ERC721("PokeDIO", "PKD") {
+        gameOwner = msg.sender; // O dono do contrato é quem o implanta
+    }
+
+    // Modificador que garante que apenas o dono de um Pokémon possa realizar certas ações
+    modifier onlyOwnerOf(uint _monsterId) {
+        require(ownerOf(_monsterId) == msg.sender, "Apenas o dono pode batalhar com este Pokemon");
+        _;
+    }
+
+    // Função que permite que um Pokémon ataque outro em batalha
+    function battle(uint _attackingPokemon, uint _defendingPokemon) public onlyOwnerOf(_attackingPokemon) {
+        // Referências aos Pokémons atacantes e defensores
+        Pokemon storage attacker = pokemons[_attackingPokemon];
+        Pokemon storage defender = pokemons[_defendingPokemon];
+
+        // Lógica de batalha: o nível do atacante e defensor são ajustados conforme o resultado da batalha
+        if (attacker.level >= defender.level) {
+            attacker.level += 2; // O atacante ganha 2 níveis se vencer
+            defender.level += 1; // O defensor ganha 1 nível mesmo se perder
+        } else {
+            attacker.level += 1; // O atacante ganha 1 nível se perder
+            defender.level += 2; // O defensor ganha 2 níveis se vencer
+        }
+    }
+
+    // Função para criar um novo Pokémon, somente o dono do jogo pode fazer isso
+    function createNewPokemon(string memory _name, address _to, string memory _img) public {
+        require(msg.sender == gameOwner, "Apenas o dono do jogo pode criar novos Pokemons");
+        uint id = pokemons.length; // O ID do novo Pokémon é a posição dele no array
+        pokemons.push(Pokemon(_name, 1, _img)); // Adiciona o novo Pokémon ao array, começando no nível 1
+        _safeMint(_to, id); // Realiza o minting seguro do token ERC721 para o endereço fornecido
+    }
+}
+```
